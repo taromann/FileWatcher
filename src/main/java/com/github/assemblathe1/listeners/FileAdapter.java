@@ -1,4 +1,6 @@
-package com.github.assemblathe1;
+package com.github.assemblathe1.listeners;
+
+import com.github.assemblathe1.utils.FileEvent;
 
 import java.nio.file.WatchEvent;
 import java.util.ArrayList;

@@ -1,5 +1,8 @@
 package com.github.assemblathe1;
 
+import com.github.assemblathe1.listeners.FileListener;
+import com.github.assemblathe1.utils.FileEvent;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -17,7 +20,6 @@ public class FileWatcher implements Runnable {
 
     public FileWatcher(File folder) {
         this.folder = folder;
-
     }
 
     public void watch() {
@@ -36,6 +38,7 @@ public class FileWatcher implements Runnable {
     @Override
     public void run() {
 //        System.out.println("FileWarcher: run() ");
+
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
             Path path = Paths.get(folder.getAbsolutePath());
             path.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
@@ -65,23 +68,27 @@ public class FileWatcher implements Runnable {
                 listener.onCreated(kind, event);
             }
             if (file.isDirectory()) {
-                new FileWatcher(file).setListeners(listeners).watch();
+                addDirectoryToFileWatcher(file);
             }
         }
         else if (kind == ENTRY_MODIFY) {
             for (FileListener listener : listeners) {
                 listener.onModified(kind, event);
             }
-        }
-        else if (kind == ENTRY_DELETE) {
+        } else if (kind == ENTRY_DELETE) {
             for (FileListener listener : listeners) {
                 listener.onDeleted(kind, event);
             }
         }
     }
 
-    public void addListener(FileListener listener) {
+    private void addDirectoryToFileWatcher(File file) {
+        new FileWatcher(file).setListeners(listeners).watch();
+    }
+
+    public FileWatcher addListener(FileListener listener) {
         listeners.add(listener);
+        return this;
     }
 
     public FileWatcher removeListener(FileListener listener) {
@@ -92,6 +99,7 @@ public class FileWatcher implements Runnable {
     public List<FileListener> getListeners() {
         return listeners;
     }
+
     public FileWatcher setListeners(List<FileListener> listeners) {
         this.listeners = listeners;
         return this;
