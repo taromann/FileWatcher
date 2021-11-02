@@ -9,7 +9,7 @@ import java.nio.file.Path;
 public class FileWatcherTest {
 
     public static void main(String[] args) {
-        FileWatcher watcher = new FileWatcher(Path.of("C:\\out")).addListener(new FileAdapter());
+        FileWatcher watcher = new FileWatcher(Path.of("C:\\out"), new FileAdapter());
 
 
         watcher.start();

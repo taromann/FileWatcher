@@ -15,8 +15,9 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
     protected List<FileListener> listeners = new ArrayList<>();
     protected static final List<WatchService> watchServices = new ArrayList<>();
 
-    public FileWatcher(Path folder) {
+    public FileWatcher(Path folder, FileListener listener) {
         createFoldersTree(folder);
+        listeners.add(listener);
     }
 
     public void start() {
@@ -76,7 +77,7 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
                 listener.onCreated(kind, event);
             }
             if (path.toFile().isDirectory()) {
-                addDirectoryToFileWatcher(path);
+                addDirectoryToWatching(path);
             }
 
 
@@ -92,9 +93,11 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
         }
     }
 
-    private void addDirectoryToFileWatcher(Path directory) {
-        new FileWatcher(directory).setListeners(listeners).addDirectoryToWatching(directory);
-    }
+//    private void addDirectoryToFileWatcher(Path directory) {
+//        listeners.forEach(listener -> );
+//
+//        new FileWatcher(directory).setListeners(listeners).addDirectoryToWatching(directory);
+//    }
 
     public FileWatcher addListener(FileListener listener) {
         listeners.add(listener);
