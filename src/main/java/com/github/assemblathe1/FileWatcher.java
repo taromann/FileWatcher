@@ -3,73 +3,83 @@ package com.github.assemblathe1;
 import com.github.assemblathe1.listeners.FileListener;
 import com.github.assemblathe1.utils.FileEvent;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
-public class FileWatcher implements Runnable {
+public class FileWatcher extends SimpleFileVisitor<Path> {
+
+    Set<Path> foldersToWatch = new HashSet<>();
     protected List<FileListener> listeners = new ArrayList<>();
-    protected final File folder;
     protected static final List<WatchService> watchServices = new ArrayList<>();
 
-    public FileWatcher(File folder) {
-        this.folder = folder;
+    public FileWatcher(Path folder) {
+        createFoldersTree(folder);
     }
 
-    public void watch() {
-        if (folder.exists()) {
-            Thread thread = new Thread(this);
-            //thread.setDaemon(true);
-            thread.start();
-//            System.out.println("FileWarcher: watch() ");
-        } else try {
-            throw new FileNotFoundException();
-        } catch (FileNotFoundException e) {
+    public void start() {
+        foldersToWatch.forEach(System.out::println);
+        foldersToWatch.forEach(this::addDirectoryToWatching);
+    }
+
+    private void createFoldersTree(Path folder) {
+        try {
+            Files.walkFileTree(folder, this);
+        } catch (
+                IOException e) {
             e.printStackTrace();
         }
     }
 
     @Override
-    public void run() {
-//        System.out.println("FileWarcher: run() ");
+    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+        foldersToWatch.add(dir);
+        return FileVisitResult.CONTINUE;
+    }
 
-        try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-            Path path = Paths.get(folder.getAbsolutePath());
-            path.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
-            watchServices.add(watchService);
-            boolean poll = true;
-            while (poll) {
-                poll = pollEvents(watchService);
+    public void addDirectoryToWatching(Path path) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
+                    path.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+                    watchServices.add(watchService);
+                    boolean poll = true;
+                    while (poll) {
+                        poll = pollEvents(watchService);
+                    }
+                } catch (IOException | InterruptedException | ClosedWatchServiceException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
-        } catch (IOException | InterruptedException | ClosedWatchServiceException e) {
-            Thread.currentThread().interrupt();
-        }
+        }).start();
+
+
     }
 
     protected boolean pollEvents(WatchService watchService) throws InterruptedException {
+//        System.out.println("FileWatcher 66" + Thread.currentThread().getName());
         WatchKey key = watchService.take();
         Path path = (Path) key.watchable();
         for (WatchEvent<?> event : key.pollEvents()) {
-            notifyListeners(event.kind(), path.resolve((Path) event.context()).toFile());
+            notifyListeners(event.kind(), path.resolve((Path) event.context()));
         }
         return key.reset();
     }
 
-    protected void notifyListeners(WatchEvent.Kind<?> kind, File file) {
-        FileEvent event = new FileEvent(file);
+    protected void notifyListeners(WatchEvent.Kind<?> kind, Path path) {
+        FileEvent event = new FileEvent(path);
         if (kind == ENTRY_CREATE) {
             for (FileListener listener : listeners) {
                 listener.onCreated(kind, event);
             }
-            if (file.isDirectory()) {
-                addDirectoryToFileWatcher(file);
+            if (path.toFile().isDirectory()) {
+                addDirectoryToFileWatcher(path);
             }
+
+
         }
         else if (kind == ENTRY_MODIFY) {
             for (FileListener listener : listeners) {
@@ -82,8 +92,8 @@ public class FileWatcher implements Runnable {
         }
     }
 
-    private void addDirectoryToFileWatcher(File file) {
-        new FileWatcher(file).setListeners(listeners).watch();
+    private void addDirectoryToFileWatcher(Path directory) {
+        new FileWatcher(directory).setListeners(listeners).addDirectoryToWatching(directory);
     }
 
     public FileWatcher addListener(FileListener listener) {

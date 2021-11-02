@@ -25,8 +25,6 @@ public class DefaultFileFileWatcher extends SimpleFileVisitor<Path> {
         } catch (
                 IOException e) {
             e.printStackTrace();
-        } finally {
-//            this.soutDirectories();
         }
     }
 
@@ -46,8 +44,4 @@ public class DefaultFileFileWatcher extends SimpleFileVisitor<Path> {
     public void soutDirectories() {
         defaultPathsToWatch.stream().map(Path::toString).forEach(System.out::println);
     }
-
-
-
-
 }

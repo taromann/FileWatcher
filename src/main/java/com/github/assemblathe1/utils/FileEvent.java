@@ -1,16 +1,17 @@
 package com.github.assemblathe1.utils;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.EventObject;
 
 public class FileEvent extends EventObject {
 
-    public FileEvent(File file) {
-        super(file);
+    public FileEvent(Path path) {
+        super(path);
     }
 
-    public File getFile() {
-        return (File) getSource();
+    public Path getFile() {
+        return (Path) getSource();
     }
 
 
