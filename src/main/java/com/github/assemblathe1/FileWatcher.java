@@ -5,26 +5,19 @@ import com.github.assemblathe1.utils.FileEvent;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
 public class FileWatcher extends SimpleFileVisitor<Path> {
 
-    Set<Path> foldersToWatch = new HashSet<>();
     protected List<FileListener> listeners = new ArrayList<>();
-    protected static final List<WatchService> watchServices = new ArrayList<>();
+    public Map<Path, WatchService> runningWatchServices = new HashMap<>();
+    Set<Thread> threadSet;
 
     public FileWatcher(Path folder, FileListener listener) {
         createFoldersTree(folder);
         listeners.add(listener);
-    }
-
-    public void start() {
-        foldersToWatch.forEach(this::addDirectoryToWatching);
     }
 
     private void createFoldersTree(Path folder) {
@@ -37,31 +30,32 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
     }
 
     @Override
-    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-        foldersToWatch.add(dir);
+    public FileVisitResult postVisitDirectory(Path path, IOException exc) throws IOException {
+        addDirectoryToFileWatcher(path);
         return FileVisitResult.CONTINUE;
     }
 
-    public void addDirectoryToWatching(Path path) {
+    public void addDirectoryToFileWatcher(Path path) {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                System.out.println(Thread.currentThread().getName());
                 try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
                     path.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
-                    watchServices.add(watchService);
+                    runningWatchServices.put(path, watchService);
                     boolean poll = true;
                     while (poll) {
                         poll = pollEvents(watchService);
                     }
                 } catch (IOException | InterruptedException | ClosedWatchServiceException e) {
-                    Thread.currentThread().interrupt();
+                    e.printStackTrace();
+
                 }
             }
         }).start();
     }
 
     protected boolean pollEvents(WatchService watchService) throws InterruptedException, IOException {
-//        System.out.println("FileWatcher 66 THREAD:::   " + Thread.currentThread().getName());
         WatchKey key = watchService.take();
         Path path = (Path) key.watchable();
         for (WatchEvent<?> event : key.pollEvents()) {
@@ -70,7 +64,7 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
         return key.reset();
     }
 
-    protected void notifyListeners(WatchService watchService, WatchEvent.Kind<?> kind, Path path) {
+    protected void notifyListeners(WatchService watchService, WatchEvent.Kind<?> kind, Path path) throws InterruptedException {
 
         FileEvent event = new FileEvent(path);
         if (kind == ENTRY_CREATE) {
@@ -78,9 +72,8 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
                 listener.onCreated(kind, event);
             }
             if (path.toFile().isDirectory()) {
-                addDirectoryToWatching(path);
+                addDirectoryToFileWatcher(path);
             }
-            System.out.println(Thread.currentThread().getName());
         }
         else if (kind == ENTRY_MODIFY) {
             for (FileListener listener : listeners) {
@@ -90,7 +83,14 @@ public class FileWatcher extends SimpleFileVisitor<Path> {
             for (FileListener listener : listeners) {
                 listener.onDeleted(kind, event);
             }
+            try {
+                if (path.toFile().isDirectory()) {
+                    runningWatchServices.get(path).close();
+                    runningWatchServices.remove(path);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
-
 }
